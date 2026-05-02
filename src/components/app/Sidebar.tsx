@@ -2,11 +2,13 @@ import type { LucideIcon } from "lucide-react";
 import { Moon, Pencil, Plus, Sparkles, Sun, Trash2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems, type View } from "./config";
+import { useContextMenu } from "./ContextMenuContext";
 
 type Session = {
   id: number;
   title: string | null;
   updated_at: string;
+  message_count: number;
 };
 
 export function Sidebar({
@@ -38,6 +40,8 @@ export function Sidebar({
   onRenameSession: (id: number, currentTitle: string) => void;
   onDeleteSession: (id: number) => void;
 }) {
+  const { showMenu } = useContextMenu();
+
   return (
     <aside
       className={cn(
@@ -52,7 +56,7 @@ export function Sidebar({
           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
             <Sparkles size={14} />
           </div>
-          <span className="text-[15px] font-medium tracking-tight">Jan</span>
+          <span className="text-[15px] font-bold tracking-tight text-foreground/90">Popup Lang</span>
         </div>
       </div>
 
@@ -84,16 +88,41 @@ export function Sidebar({
       <div className="min-h-0 flex-1 px-3 pb-2 pt-4">
         <div className="mb-2 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Chats</div>
           <div className="space-y-0.5 overflow-auto pr-1" role="listbox" aria-label="Chat sessions">
-            {sessions.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-muted-foreground">No conversations yet</div>
-            ) : (
-              sessions.map((item) => {
+            {(() => {
+              const visibleSessions = sessions.filter(s => s.message_count > 0 || s.id === sessionId);
+              if (visibleSessions.length === 0) {
+                return <div className="px-3 py-2 text-xs text-muted-foreground">No conversations yet</div>;
+              }
+              return visibleSessions.map((item) => {
                 const isActive = sessionId === item.id;
                 return (
                   <div
                     key={item.id}
                     role="option"
                     aria-selected={isActive}
+                    onContextMenu={(e) => {
+                      showMenu(e, [
+                        {
+                          id: "rename",
+                          label: "Rename",
+                          icon: <Pencil size={14} />,
+                          onClick: () => onRenameSession(item.id, item.title || "New Chat")
+                        },
+                        {
+                          id: "sep-1",
+                          label: "",
+                          separator: true,
+                        },
+                        {
+                          id: "delete",
+                          label: "Delete",
+                          icon: <Trash2 size={14} />,
+                          danger: true,
+                          shortcut: "⌘⌫",
+                          onClick: () => onDeleteSession(item.id)
+                        }
+                      ]);
+                    }}
                     className={cn(
                       "group flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-muted"
                     )}
@@ -118,7 +147,7 @@ export function Sidebar({
                   </div>
                 );
               })
-            )}
+            })()}
           </div>
       </div>
 

@@ -114,6 +114,7 @@ pub fn run() {
             commands::words::get_daily_words,
             commands::words::get_word_detail,
             commands::words::mark_word_learned,
+            commands::words::get_learned_words,
             commands::quiz::generate_quiz,
             commands::quiz::submit_quiz_answer,
             commands::ai::generate_daily_words,

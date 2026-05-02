@@ -36,3 +36,11 @@ pub fn mark_word_learned(db: State<Database>, daily_word_id: i64) -> Result<(), 
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     queries::mark_word_learned(&conn, daily_word_id)
 }
+
+#[tauri::command]
+pub fn get_learned_words(db: State<Database>) -> Result<Vec<Word>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let user = queries::get_user(&conn)?
+        .ok_or_else(|| "No user found.".to_string())?;
+    queries::get_all_learned_words(&conn, user.id)
+}

@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import * as api from "@/lib/tauri";
 import { MessageBubble } from "./MessageBubble";
 import { QuickPromptButton } from "./QuickPrompts";
+import { useContextMenu } from "@/components/app/ContextMenuContext";
+import { Copy, Scissors, ClipboardPaste } from "lucide-react";
 
 const MAX_CHARS = 2000;
 
@@ -35,14 +37,44 @@ export function ChatView({
   const [input, setInput] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const { showMenu } = useContextMenu();
 
-  const langMatch = targetLanguage ? targetLanguage.toLowerCase() : "a new language";
-  const isArabic = langMatch.includes("ar");
+  const handleContextMenu = (e: React.MouseEvent) => {
+    showMenu(e, [
+      {
+        id: "copy-all",
+        label: "Copy All Messages",
+        icon: <Copy size={14} />,
+        onClick: () => {
+          const text = messages.map(m => `${m.role === 'user' ? 'You' : 'Bot'}:\n${m.content}`).join('\n\n');
+          navigator.clipboard.writeText(text).catch(() => {});
+        }
+      },
+      {
+        id: "select-all",
+        label: "Select All",
+        shortcut: "⌘A",
+        onClick: () => {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          if (messagesContainerRef.current) {
+            range.selectNodeContents(messagesContainerRef.current);
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          }
+        }
+      }
+    ]);
+  };
+
+  const isArabic = useMemo(() => {
+    if (!messages.length) return false;
+    return messages.some(m => /[\u0600-\u06FF]/.test(m.content));
+  }, [messages]);
 
   const isQuestionMode = useMemo(() => {
     if (messages.length === 0) return false;
@@ -117,91 +149,26 @@ export function ChatView({
   }, [messages]);
 
   return (
-    <div className="flex h-full w-full flex-col bg-background/95 relative animate-in fade-in duration-300">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-card/40 px-4 backdrop-blur-md sticky top-0 z-10 transition-colors">
-        <button
-          onClick={onToggleSidebar}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted md:hidden"
-          title="Toggle Sidebar"
-          aria-label="Toggle Sidebar"
-        >
-          <Menu size={18} />
-        </button>
-        
-        <div className="flex flex-col flex-1 min-w-0">
-          <h2 className={cn(
-            "text-[15px] font-semibold tracking-tight text-foreground truncate",
-            isArabic && "font-arabic rtl"
-          )}>
-            {title}
-          </h2>
-          {targetLanguage && (
-            <p className="text-[11px] font-medium text-muted-foreground capitalize flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse"></span>
-              {targetLanguage}
-            </p>
-          )}
-        </div>
-
-        <div className="relative">
-          <button 
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"
-            aria-label="Chat options"
-          >
-            <Settings size={16} />
-          </button>
-          
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border bg-card p-1 shadow-lg z-50 animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-3 py-2 border-b mb-1">
-                  <p className="text-xs font-semibold text-foreground/80 uppercase tracking-wider">Chat Options</p>
-                </div>
-                
-                <button 
-                  onClick={() => { setMenuOpen(false); /* Export Logic */ }}
-                  className="flex items-center gap-2 w-full text-left px-3 py-2.5 text-sm text-foreground/90 rounded-md hover:bg-muted transition-colors opacity-50 cursor-not-allowed"
-                  disabled
-                >
-                  <FileText size={15} /> Export Chat
-                </button>
-                <button 
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onClearHistory?.();
-                  }}
-                  className="flex items-center gap-2 w-full text-left px-3 py-2.5 text-sm text-foreground/90 rounded-md hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
-                >
-                  <DatabaseBackup size={15} /> Clear History
-                </button>
-                <div className="h-px bg-border my-1" />
-                <button 
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDeleteSession?.();
-                  }}
-                  className="flex items-center gap-2 w-full text-left px-3 py-2.5 text-sm text-red-500 rounded-md hover:bg-red-500/10 transition-colors"
-                >
-                  <LogOut size={15} /> Delete Session
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </header>
-
+    <div className="flex h-full w-full flex-col bg-transparent relative animate-in fade-in duration-300 overflow-hidden">
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-4 py-6 custom-scrollbar"
+        onContextMenu={handleContextMenu}
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 md:py-6 custom-scrollbar select-text"
       >
         <div className="mx-auto flex max-w-3xl flex-col gap-8 pb-4">
           {groups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center pt-20 pb-10 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-primary/5 p-4 rounded-full mb-5 ring-1 ring-primary/10">
-                <Bot size={40} className="text-primary/80" />
+            <div className="flex flex-col items-center justify-center pt-10 pb-10 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full opacity-30 animate-pulse"></div>
+                <video
+                  src="/mascot.mov"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="relative z-10 size-40 md:size-56 object-contain"
+                />
               </div>
               <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60 mb-2">
                 Start a New Lesson
@@ -217,7 +184,8 @@ export function ChatView({
               </div>
             </div>
           ) : (
-            groups.map((group, groupIdx) => (
+            <>
+              {groups.map((group, groupIdx) => (
               <div key={group.date} className="flex flex-col gap-6 relative">
                 <div className="sticky top-0 z-10 flex justify-center pb-2">
                   <span className="rounded-full border bg-background/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
@@ -238,7 +206,8 @@ export function ChatView({
                   );
                 })}
               </div>
-            ))
+              ))}
+            </>
           )}
 
           {loading && (
@@ -287,6 +256,18 @@ export function ChatView({
 
       <div className="px-4 pb-4 pt-1 bg-gradient-to-t from-background via-background to-transparent z-10 w-full relative">
         <div className="mx-auto max-w-3xl relative">
+          {groups.length > 0 && (
+            <div className="absolute -top-32 right-0 pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <video
+                src="/mascot.mov"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="size-32 md:size-40 object-contain drop-shadow-xl"
+              />
+            </div>
+          )}
           {isQuestionMode && (
             <div className="absolute -top-3.5 left-4 bg-primary text-primary-foreground text-[10px] font-bold px-3 py-0.5 rounded-full flex items-center gap-1 shadow-sm uppercase tracking-widest z-20">
               <Sparkles size={12} className="opacity-90" />
@@ -306,6 +287,84 @@ export function ChatView({
               value={input}
               autoFocus
               aria-label="Chat message input"
+              onContextMenu={(e) => {
+                e.stopPropagation();
+                showMenu(e, [
+                  {
+                    id: "cut",
+                    label: "Cut",
+                    icon: <Scissors size={14} />,
+                    shortcut: "⌘X",
+                    onClick: async () => {
+                      const start = textareaRef.current?.selectionStart || 0;
+                      const end = textareaRef.current?.selectionEnd || 0;
+                      if (start !== end) {
+                        const text = input.substring(start, end);
+                        await navigator.clipboard.writeText(text).catch(() => {});
+                        const newText = input.substring(0, start) + input.substring(end);
+                        setInput(newText);
+                        // reset cursor
+                        setTimeout(() => {
+                          if (textareaRef.current) {
+                            textareaRef.current.selectionStart = start;
+                            textareaRef.current.selectionEnd = start;
+                          }
+                        }, 0);
+                      }
+                    }
+                  },
+                  {
+                    id: "copy",
+                    label: "Copy",
+                    icon: <Copy size={14} />,
+                    shortcut: "⌘C",
+                    onClick: async () => {
+                      const start = textareaRef.current?.selectionStart || 0;
+                      const end = textareaRef.current?.selectionEnd || 0;
+                      if (start !== end) {
+                        const text = input.substring(start, end);
+                        await navigator.clipboard.writeText(text).catch(() => {});
+                      }
+                    }
+                  },
+                  {
+                    id: "paste",
+                    label: "Paste",
+                    icon: <ClipboardPaste size={14} />,
+                    shortcut: "⌘V",
+                    onClick: async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        const start = textareaRef.current?.selectionStart || 0;
+                        const end = textareaRef.current?.selectionEnd || 0;
+                        const newText = input.substring(0, start) + text + input.substring(end);
+                        setInput(newText);
+                        setTimeout(() => {
+                          if (textareaRef.current) {
+                            textareaRef.current.selectionStart = start + text.length;
+                            textareaRef.current.selectionEnd = start + text.length;
+                          }
+                        }, 0);
+                      } catch (err) {
+                        console.error("Failed to read clipboard");
+                      }
+                    }
+                  },
+                  {
+                    id: "sep-input",
+                    label: "",
+                    separator: true,
+                  },
+                  {
+                    id: "select-all",
+                    label: "Select All",
+                    shortcut: "⌘A",
+                    onClick: () => {
+                      textareaRef.current?.select();
+                    }
+                  }
+                ]);
+              }}
               onChange={(e) => {
                 setInput(e.target.value);
                 e.target.style.height = "auto";

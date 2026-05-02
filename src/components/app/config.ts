@@ -5,7 +5,7 @@ export const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "words", label: "Words", icon: BookOpen },
   { id: "chat", label: "AI Chat", icon: MessageSquare },
-  { id: "quiz", label: "Quiz", icon: Brain },
+  { id: "quiz", label: "Letters", icon: Brain },
   { id: "settings", label: "Settings", icon: Settings },
 ] as const;
 

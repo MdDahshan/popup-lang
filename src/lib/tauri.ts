@@ -35,6 +35,10 @@ export async function markWordLearned(dailyWordId: number): Promise<void> {
   return invoke<void>("mark_word_learned", { dailyWordId });
 }
 
+export async function getLearnedWords(): Promise<Word[]> {
+  return invoke<Word[]>("get_learned_words");
+}
+
 // ─── AI Commands ───
 
 export async function generateDailyWords(forceNew: boolean = false): Promise<WordExplanation[]> {

@@ -89,6 +89,7 @@ export interface ChatSession {
   title: string | null;
   created_at: string;
   updated_at: string;
+  message_count: number;
 }
 
 export interface ChatMessage {

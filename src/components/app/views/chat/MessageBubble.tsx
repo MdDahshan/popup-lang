@@ -3,6 +3,7 @@ import { Bot, UserRound, Copy, Sparkles } from "lucide-react";
 import { cn, formatTime, getContentDirection } from "@/lib/utils";
 import * as api from "@/lib/tauri";
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { useContextMenu } from "@/components/app/ContextMenuContext";
 
 export const MessageBubble = memo(({
   message,
@@ -22,8 +23,24 @@ export const MessageBubble = memo(({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const { showMenu } = useContextMenu();
+
   return (
-    <div className="flex gap-3 w-full animate-in fade-in slide-in-from-bottom-2 zoom-in-[0.98] duration-300 ease-out">
+    <div 
+      onContextMenu={(e) => {
+        e.stopPropagation();
+        showMenu(e, [
+          {
+            id: "copy-message",
+            label: "Copy Message",
+            icon: <Copy size={14} />,
+            shortcut: "⌘C",
+            onClick: handleCopy
+          }
+        ]);
+      }}
+      className="flex gap-3 w-full animate-in fade-in slide-in-from-bottom-2 zoom-in-[0.98] duration-300 ease-out"
+    >
       {!isUser && (
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <Bot size={15} className="text-primary" />

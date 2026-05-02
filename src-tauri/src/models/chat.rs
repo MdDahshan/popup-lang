@@ -45,6 +45,7 @@ pub struct ChatSession {
     pub title: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub message_count: i64,
 }
 
 /// Represents a single message in a chat conversation

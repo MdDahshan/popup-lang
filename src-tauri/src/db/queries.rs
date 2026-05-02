@@ -458,6 +458,7 @@ fn map_chat_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChatSession> {
         title: row.get(2)?,
         created_at: row.get(3)?,
         updated_at: row.get(4)?,
+        message_count: row.get(5).unwrap_or(0),
     })
 }
 
@@ -474,7 +475,9 @@ pub fn create_chat_session(conn: &Connection, user_id: i64, title: Option<&str>)
 pub fn get_chat_session_by_id(conn: &Connection, session_id: i64) -> Result<Option<ChatSession>, String> {
     let session = conn
         .query_row(
-            "SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE id = ?1",
+            "SELECT id, user_id, title, created_at, updated_at,
+             (SELECT COUNT(*) FROM chat_messages WHERE session_id = chat_sessions.id) as message_count
+             FROM chat_sessions WHERE id = ?1",
             params![session_id],
             map_chat_session,
         )
@@ -486,7 +489,9 @@ pub fn get_chat_session_by_id(conn: &Connection, session_id: i64) -> Result<Opti
 pub fn get_chat_sessions_by_user(conn: &Connection, user_id: i64) -> Result<Vec<ChatSession>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE user_id = ?1 ORDER BY updated_at DESC, id DESC"
+            "SELECT id, user_id, title, created_at, updated_at,
+             (SELECT COUNT(*) FROM chat_messages WHERE session_id = chat_sessions.id) as message_count
+             FROM chat_sessions WHERE user_id = ?1 ORDER BY updated_at DESC, id DESC"
         )
         .map_err(|e| e.to_string())?;
 
@@ -503,7 +508,9 @@ pub fn get_chat_sessions_by_user(conn: &Connection, user_id: i64) -> Result<Vec<
 pub fn get_chat_session_by_user(conn: &Connection, user_id: i64) -> Result<Option<ChatSession>, String> {
     let session = conn
         .query_row(
-            "SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE user_id = ?1 ORDER BY updated_at DESC LIMIT 1",
+            "SELECT id, user_id, title, created_at, updated_at,
+             (SELECT COUNT(*) FROM chat_messages WHERE session_id = chat_sessions.id) as message_count
+             FROM chat_sessions WHERE user_id = ?1 ORDER BY updated_at DESC LIMIT 1",
             params![user_id],
             map_chat_session,
         )
@@ -616,3 +623,38 @@ pub fn delete_chat_messages_by_session(conn: &Connection, session_id: i64) -> Re
 #[cfg(test)]
 #[path = "queries_chat_tests.rs"]
 mod queries_chat_tests;
+
+pub fn get_all_learned_words(conn: &rusqlite::Connection, user_id: i64) -> Result<Vec<crate::models::Word>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT w.id, w.word_text, w.target_language, w.translation, w.pronunciation, w.explanation, w.examples_json, w.word_type, w.difficulty_score, w.created_at 
+             FROM words w 
+             JOIN daily_words dw ON dw.word_id = w.id 
+             JOIN daily_word_sets ds ON ds.id = dw.set_id 
+             WHERE ds.user_id = ?1 AND dw.learned = 1 AND ds.date >= date('now', '-7 days')"
+        )
+        .map_err(|e| e.to_string())?;
+
+    let words: Vec<crate::models::Word> = stmt
+        .query_map(rusqlite::params![user_id], |row| {
+            let examples_json: String = row.get(6)?;
+            let examples: Vec<String> = serde_json::from_str(&examples_json).unwrap_or_default();
+            Ok(crate::models::Word {
+                id: row.get(0)?,
+                word_text: row.get(1)?,
+                target_language: row.get(2)?,
+                translation: row.get(3)?,
+                pronunciation: row.get(4)?,
+                explanation: row.get(5)?,
+                examples,
+                word_type: row.get(7)?,
+                difficulty_score: row.get(8)?,
+                created_at: row.get(9)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(words)
+}

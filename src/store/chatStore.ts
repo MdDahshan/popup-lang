@@ -91,13 +91,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const nextSessionId = await api.deleteChatSession(sessionId);
+      // getChatSessions automatically creates a 'New Chat' if the list is empty
       const sessions = await api.getChatSessions();
-      if (nextSessionId) {
-        const messages = await api.getChatMessages(nextSessionId);
-        set({ sessions, messages, sessionId: nextSessionId, loading: false });
+      const targetSessionId = nextSessionId || sessions[0]?.id;
+      
+      if (targetSessionId) {
+        const messages = await api.getChatMessages(targetSessionId);
+        set({ sessions, messages, sessionId: targetSessionId, loading: false });
       } else {
-        const created = await api.createChatSession("New Chat");
-        set({ sessions: [...sessions, created], messages: [], sessionId: created.id, loading: false });
+        set({ sessions: [], messages: [], sessionId: null, loading: false });
       }
     } catch (err) {
       set({ error: String(err), loading: false });
@@ -124,12 +126,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
+      const isFirstMessage = messages.length === 0;
+
       // Send message to backend
       await api.sendChatMessage(
         content,
         wordContext?.word_id,
         get().sessionId || undefined
       );
+
+      if (isFirstMessage && get().sessionId) {
+        let newTitle = content.trim().split('\n')[0];
+        if (newTitle.length > 35) {
+          newTitle = newTitle.substring(0, 35) + "...";
+        }
+        await api.renameChatSession(get().sessionId!, newTitle);
+      }
 
       const [updatedMessages, sessions] = await Promise.all([
         api.getChatMessages(get().sessionId || undefined),

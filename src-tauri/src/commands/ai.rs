@@ -5,7 +5,9 @@ use crate::models::WordExplanation;
 use crate::services::groq;
 
 #[tauri::command]
-pub async fn generate_daily_words(db: State<'_, Database>) -> Result<Vec<WordExplanation>, String> {
+pub async fn generate_daily_words(db: State<'_, Database>, force_new: Option<bool>) -> Result<Vec<WordExplanation>, String> {
+    let force_new = force_new.unwrap_or(false);
+    
     let (api_key, user, exclude_words) = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         let api_key = queries::get_setting(&conn, "groq_api_key")?
@@ -13,22 +15,29 @@ pub async fn generate_daily_words(db: State<'_, Database>) -> Result<Vec<WordExp
         let user = queries::get_user(&conn)?
             .ok_or_else(|| "No user found. Please complete onboarding.".to_string())?;
 
-        // Check if today already has words
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        let existing = queries::get_daily_words(&conn, user.id, &today)?;
-        if !existing.is_empty() {
-            let words: Vec<WordExplanation> = existing.into_iter().map(|(w, _)| {
-                WordExplanation {
-                    word_text: w.word_text,
-                    translation: w.translation,
-                    pronunciation: w.pronunciation,
-                    explanation: w.explanation,
-                    examples: w.examples,
-                    word_type: w.word_type,
-                    difficulty_score: w.difficulty_score,
-                }
-            }).collect();
-            return Ok(words);
+        
+        // If force_new is true, delete existing words for today
+        if force_new {
+            // Delete existing daily words for today
+            queries::delete_daily_words_for_date(&conn, user.id, &today)?;
+        } else {
+            // Check if today already has words
+            let existing = queries::get_daily_words(&conn, user.id, &today)?;
+            if !existing.is_empty() {
+                let words: Vec<WordExplanation> = existing.into_iter().map(|(w, _)| {
+                    WordExplanation {
+                        word_text: w.word_text,
+                        translation: w.translation,
+                        pronunciation: w.pronunciation,
+                        explanation: w.explanation,
+                        examples: w.examples,
+                        word_type: w.word_type,
+                        difficulty_score: w.difficulty_score,
+                    }
+                }).collect();
+                return Ok(words);
+            }
         }
 
         let exclude = queries::get_learned_word_texts(&conn, user.id)?;

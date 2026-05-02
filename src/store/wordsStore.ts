@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DailyWordEntry, WordExplanation } from "@/types";
+import type { DailyWordEntry, WordExplanation, WordContext } from "@/types";
 import * as api from "@/lib/tauri";
 
 interface WordsState {
@@ -8,8 +8,9 @@ interface WordsState {
   generating: boolean;
   error: string | null;
   fetchDailyWords: () => Promise<void>;
-  generateDailyWords: () => Promise<WordExplanation[]>;
+  generateDailyWords: (forceNew?: boolean) => Promise<WordExplanation[]>;
   markLearned: (dailyWordId: number) => Promise<void>;
+  explainWordWithAI: (wordId: number, navigate: (path: string, options?: { state?: any }) => void) => void;
 }
 
 export const useWordsStore = create<WordsState>((set, get) => ({
@@ -28,10 +29,10 @@ export const useWordsStore = create<WordsState>((set, get) => ({
     }
   },
 
-  generateDailyWords: async () => {
+  generateDailyWords: async (forceNew: boolean = false) => {
     set({ generating: true, error: null });
     try {
-      const words = await api.generateDailyWords();
+      const words = await api.generateDailyWords(forceNew);
       // Refetch daily words to get DB IDs
       await get().fetchDailyWords();
       set({ generating: false });
@@ -55,5 +56,27 @@ export const useWordsStore = create<WordsState>((set, get) => ({
     } catch (err) {
       set({ error: String(err) });
     }
+  },
+
+  explainWordWithAI: (wordId: number, navigate: (path: string, options?: { state?: any }) => void) => {
+    const state = get();
+    const wordEntry = state.dailyWords.find((entry) => entry.word.id === wordId);
+    
+    if (!wordEntry) {
+      console.error(`Word with id ${wordId} not found in daily words`);
+      return;
+    }
+
+    const wordContext: WordContext = {
+      word_id: wordEntry.word.id,
+      word_text: wordEntry.word.word_text,
+      translation: wordEntry.word.translation,
+      pronunciation: wordEntry.word.pronunciation,
+    };
+
+    // Navigate to ChatPage with word context
+    navigate("/", {
+      state: { wordContext },
+    });
   },
 }));

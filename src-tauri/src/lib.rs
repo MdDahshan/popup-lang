@@ -51,27 +51,50 @@ pub fn run() {
             // Background Reminder Loop Component
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // Minimal Loop verifying configurations every minute
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                // Wait 10 seconds before starting the loop (give app time to initialize)
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                
+                println!("[Background] Starting popup reminder loop...");
+                
                 loop {
-                    interval.tick().await;
-                    
-                    let interval_minutes = {
+                    let (reminder_enabled, interval_minutes) = {
                         let state = app_handle.state::<Database>();
                         let db = state.conn.lock().unwrap();
-                        db.query_row(
-                            "SELECT setting_value FROM app_settings WHERE setting_key = 'reminder_interval'",
+                        
+                        let enabled: bool = db.query_row(
+                            "SELECT reminder_enabled FROM users LIMIT 1",
+                            [],
+                            |row| Ok(row.get::<_, i32>(0)? == 1)
+                        ).unwrap_or(true);
+                        
+                        let interval = db.query_row(
+                            "SELECT value FROM app_settings WHERE key = 'popup_interval'",
                             [],
                             |row| {
                                 let val: String = row.get(0)?;
-                                Ok(val.parse::<i64>().unwrap_or(60))
+                                Ok(val.parse::<u64>().unwrap_or(1))
                             }
-                        ).unwrap_or(60) // default 60 mins
+                        ).unwrap_or(1); // default 1 minute
+                        
+                        (enabled, interval)
                     };
-
-                    println!("[Tokio Background] Checking popup schedule... Configure reminder is {} mins.", interval_minutes);
-                    // TODO in Production: Validate LAST_POPUP_TIME > interval_minutes, then visually trigger:
-                    // commands::window::show_popup_window(app_handle.clone()).await; 
+                    
+                    let interval_seconds = interval_minutes * 60;
+                    println!("[Background] Next popup in {} minutes ({} seconds) - Enabled: {}", interval_minutes, interval_seconds, reminder_enabled);
+                    
+                    // Wait for the configured interval
+                    tokio::time::sleep(std::time::Duration::from_secs(interval_seconds)).await;
+                    
+                    if reminder_enabled {
+                        println!("[Background] Showing popup now...");
+                        
+                        // Show popup window - don't spawn a new task, just call directly
+                        if let Err(e) = commands::window::show_popup_window(app_handle.clone()).await {
+                            eprintln!("[Background] Failed to show popup: {}", e);
+                        }
+                    } else {
+                        println!("[Background] Reminders disabled, skipping popup.");
+                    }
                 }
             });
 
@@ -101,6 +124,15 @@ pub fn run() {
             commands::settings::set_setting,
             commands::window::hide_popup_window,
             commands::window::show_popup_window,
+            commands::chat::send_chat_message,
+            commands::chat::get_chat_messages,
+            commands::chat::clear_chat_history,
+            commands::chat::get_or_create_session,
+            commands::chat::get_chat_sessions,
+            commands::chat::create_chat_session,
+            commands::chat::set_active_chat_session,
+            commands::chat::rename_chat_session,
+            commands::chat::delete_chat_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

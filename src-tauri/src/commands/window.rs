@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, Manager, PhysicalPosition};
 
 #[tauri::command]
 pub async fn hide_popup_window(app: AppHandle) -> Result<(), String> {

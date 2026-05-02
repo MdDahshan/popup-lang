@@ -81,6 +81,35 @@ export interface DashboardStats {
   hardest_words: Word[];
 }
 
+// ─── Chat Types ───
+
+export interface ChatSession {
+  id: number;
+  user_id: number;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  session_id: number;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  word_context_id: number | null;
+  created_at: string;
+}
+
+export interface WordContext {
+  word_id: number;
+  word_text: string;
+  translation: string;
+  pronunciation: string;
+  explanation?: string | null;
+  word_type?: string | null;
+  examples?: string[] | null;
+}
+
 // ─── Language ───
 
 export interface Language {

@@ -6,7 +6,9 @@ use crate::services::groq;
 use rand::seq::SliceRandom;
 
 #[tauri::command]
-pub fn generate_quiz(db: State<Database>) -> Result<Vec<QuizQuestion>, String> {
+pub fn generate_quiz(db: State<Database>, single_question: Option<bool>) -> Result<Vec<QuizQuestion>, String> {
+    let single_question = single_question.unwrap_or(false);
+    
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let user = queries::get_user(&conn)?
         .ok_or_else(|| "No user found".to_string())?;
@@ -22,7 +24,14 @@ pub fn generate_quiz(db: State<Database>) -> Result<Vec<QuizQuestion>, String> {
     let question_types = vec!["translate", "multiple_choice", "fill_blank"];
     let mut rng = rand::thread_rng();
 
-    for (word, _daily_word) in &daily_words {
+    // If single_question is true, pick one random word
+    let words_to_quiz: Vec<_> = if single_question {
+        daily_words.choose(&mut rng).into_iter().collect()
+    } else {
+        daily_words.iter().collect()
+    };
+
+    for (word, _daily_word) in &words_to_quiz {
         let qtype = question_types.choose(&mut rng).unwrap_or(&"translate");
 
         match *qtype {
@@ -57,7 +66,16 @@ pub fn generate_quiz(db: State<Database>) -> Result<Vec<QuizQuestion>, String> {
                 let example = word.examples.first().cloned().unwrap_or_else(|| {
                     format!("Please use {} in a sentence.", word.word_text)
                 });
-                let blanked = example.replace(&word.word_text, "______");
+                let mut blanked = example.replace(&word.word_text, "______");
+                
+                // Also handle capitalized versions (e.g. "Innovation" instead of "innovation")
+                let mut chars = word.word_text.chars();
+                let capitalized = match chars.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                };
+                blanked = blanked.replace(&capitalized, "______");
+                blanked = blanked.replace(&word.word_text.to_lowercase(), "______");
 
                 questions.push(QuizQuestion {
                     word_id: word.id,

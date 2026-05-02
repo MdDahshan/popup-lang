@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+pub mod chat;
+pub use chat::{ChatSession, ChatMessage, ChatRole, UserContext, WordContext};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: i64,
@@ -70,6 +73,7 @@ pub struct DashboardStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct AppSettings {
     pub api_key: Option<String>,
     pub reminder_interval_minutes: i32,
@@ -78,6 +82,7 @@ pub struct AppSettings {
 
 // Request/response types for AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct GenerateWordsRequest {
     pub target_language: String,
     pub native_language: String,

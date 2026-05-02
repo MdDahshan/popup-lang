@@ -20,14 +20,17 @@
         "label": "popup",
         "title": "Quiz",
         "url": "/#/popup",
-        "width": 350,
-        "height": 450,
+        "width": 380,
+        "height": 520,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "visible": false,
         "resizable": false,
-        "skipTaskbar": true
+        "skipTaskbar": true,
+        "center": false,
+        "x": 100,
+        "y": 100
       }
     ],
     "security": {

@@ -10,7 +10,7 @@ interface QuizState {
   loading: boolean;
   submitting: boolean;
   error: string | null;
-  startQuiz: () => Promise<void>;
+  startQuiz: (singleQuestion?: boolean) => Promise<void>;
   submitAnswer: (userAnswer: string) => Promise<AnswerFeedback>;
   nextQuestion: () => void;
   closeQuiz: () => void;
@@ -25,10 +25,10 @@ export const useQuizStore = create<QuizState>((set, get) => ({
   submitting: false,
   error: null,
 
-  startQuiz: async () => {
+  startQuiz: async (singleQuestion: boolean = false) => {
     set({ loading: true, error: null });
     try {
-      const questions = await api.generateQuiz();
+      const questions = await api.generateQuiz(singleQuestion);
       set({
         questions,
         currentIndex: 0,

@@ -7,6 +7,8 @@ import type {
   QuizQuestion,
   AnswerFeedback,
   DashboardStats,
+  ChatMessage,
+  ChatSession,
 } from "@/types";
 
 // ─── User Commands ───
@@ -35,14 +37,14 @@ export async function markWordLearned(dailyWordId: number): Promise<void> {
 
 // ─── AI Commands ───
 
-export async function generateDailyWords(): Promise<WordExplanation[]> {
-  return invoke<WordExplanation[]>("generate_daily_words");
+export async function generateDailyWords(forceNew: boolean = false): Promise<WordExplanation[]> {
+  return invoke<WordExplanation[]>("generate_daily_words", { forceNew });
 }
 
 // ─── Quiz Commands ───
 
-export async function generateQuiz(): Promise<QuizQuestion[]> {
-  return invoke<QuizQuestion[]>("generate_quiz");
+export async function generateQuiz(singleQuestion: boolean = false): Promise<QuizQuestion[]> {
+  return invoke<QuizQuestion[]>("generate_quiz", { singleQuestion });
 }
 
 export async function submitQuizAnswer(
@@ -79,4 +81,50 @@ export async function getSetting(key: string): Promise<string | null> {
 
 export async function setSetting(key: string, value: string): Promise<void> {
   return invoke<void>("set_setting", { key, value });
+}
+
+// ─── Chat Commands ───
+
+export async function getChatMessages(sessionId?: number): Promise<ChatMessage[]> {
+  return invoke<ChatMessage[]>("get_chat_messages", { sessionId });
+}
+
+export async function sendChatMessage(
+  content: string,
+  wordContextId?: number,
+  sessionId?: number
+): Promise<ChatMessage> {
+  return invoke<ChatMessage>("send_chat_message", {
+    content,
+    wordContextId,
+    sessionId,
+  });
+}
+
+export async function clearChatHistory(sessionId?: number): Promise<void> {
+  return invoke<void>("clear_chat_history", { sessionId });
+}
+
+export async function getOrCreateSession(sessionId?: number): Promise<number> {
+  return invoke<number>("get_or_create_session", { sessionId });
+}
+
+export async function getChatSessions(): Promise<ChatSession[]> {
+  return invoke<ChatSession[]>("get_chat_sessions");
+}
+
+export async function createChatSession(title?: string): Promise<ChatSession> {
+  return invoke<ChatSession>("create_chat_session", { title });
+}
+
+export async function setActiveChatSession(sessionId: number): Promise<void> {
+  return invoke<void>("set_active_chat_session", { sessionId });
+}
+
+export async function renameChatSession(sessionId: number, title: string): Promise<void> {
+  return invoke<void>("rename_chat_session", { sessionId, title });
+}
+
+export async function deleteChatSession(sessionId: number): Promise<number | null> {
+  return invoke<number | null>("delete_chat_session", { sessionId });
 }

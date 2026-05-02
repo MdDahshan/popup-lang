@@ -215,6 +215,33 @@ pub fn mark_word_learned(conn: &Connection, daily_word_id: i64) -> Result<(), St
     Ok(())
 }
 
+pub fn delete_daily_words_for_date(conn: &Connection, user_id: i64, date: &str) -> Result<(), String> {
+    // First, get the set_id for this date
+    let set_id: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM daily_word_sets WHERE user_id = ?1 AND date = ?2",
+            params![user_id, date],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if let Some(set_id) = set_id {
+        // Delete daily_words entries
+        conn.execute(
+            "DELETE FROM daily_words WHERE set_id = ?1",
+            params![set_id],
+        ).map_err(|e| e.to_string())?;
+
+        // Delete the set itself
+        conn.execute(
+            "DELETE FROM daily_word_sets WHERE id = ?1",
+            params![set_id],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
 // ─── Quiz queries ───
 
 pub fn record_quiz_attempt(conn: &Connection, attempt: &QuizAttempt) -> Result<i64, String> {
@@ -421,3 +448,171 @@ pub fn get_learned_word_texts(conn: &Connection, user_id: i64) -> Result<Vec<Str
 
     Ok(words)
 }
+
+// ─── Chat queries ───
+
+fn map_chat_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChatSession> {
+    Ok(ChatSession {
+        id: row.get(0)?,
+        user_id: row.get(1)?,
+        title: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })
+}
+
+/// Create a new chat session for a user
+pub fn create_chat_session(conn: &Connection, user_id: i64, title: Option<&str>) -> Result<i64, String> {
+    conn.execute(
+        "INSERT INTO chat_sessions (user_id, title) VALUES (?1, ?2)",
+        params![user_id, title],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn get_chat_session_by_id(conn: &Connection, session_id: i64) -> Result<Option<ChatSession>, String> {
+    let session = conn
+        .query_row(
+            "SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE id = ?1",
+            params![session_id],
+            map_chat_session,
+        )
+        .ok();
+
+    Ok(session)
+}
+
+pub fn get_chat_sessions_by_user(conn: &Connection, user_id: i64) -> Result<Vec<ChatSession>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE user_id = ?1 ORDER BY updated_at DESC, id DESC"
+        )
+        .map_err(|e| e.to_string())?;
+
+    let sessions = stmt
+        .query_map(params![user_id], map_chat_session)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(sessions)
+}
+
+/// Get the most recent chat session for a user
+pub fn get_chat_session_by_user(conn: &Connection, user_id: i64) -> Result<Option<ChatSession>, String> {
+    let session = conn
+        .query_row(
+            "SELECT id, user_id, title, created_at, updated_at FROM chat_sessions WHERE user_id = ?1 ORDER BY updated_at DESC LIMIT 1",
+            params![user_id],
+            map_chat_session,
+        )
+        .ok();
+
+    Ok(session)
+}
+
+pub fn rename_chat_session(conn: &Connection, session_id: i64, title: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE chat_sessions SET title = ?1, updated_at = datetime('now') WHERE id = ?2",
+        params![title, session_id],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+pub fn delete_chat_session(conn: &Connection, session_id: i64) -> Result<(), String> {
+    conn.execute("DELETE FROM chat_sessions WHERE id = ?1", params![session_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Insert a new chat message into a session
+pub fn insert_chat_message(
+    conn: &Connection,
+    session_id: i64,
+    role: &str,
+    content: &str,
+    word_context_id: Option<i64>,
+) -> Result<i64, String> {
+    // Validate role using the enum
+    let _role = ChatRole::from_str_checked(role)?;
+    
+    conn.execute(
+        "INSERT INTO chat_messages (session_id, role, content, word_context_id) VALUES (?1, ?2, ?3, ?4)",
+        params![session_id, role, content, word_context_id],
+    ).map_err(|e| e.to_string())?;
+    
+    // Capture message ID immediately after INSERT, before the UPDATE
+    let message_id = conn.last_insert_rowid();
+    
+    // Update session's updated_at timestamp
+    conn.execute(
+        "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?1",
+        params![session_id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(message_id)
+}
+
+/// Get all chat messages for a session, ordered by creation time
+pub fn get_chat_messages_by_session(conn: &Connection, session_id: i64) -> Result<Vec<ChatMessage>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, session_id, role, content, word_context_id, created_at FROM chat_messages WHERE session_id = ?1 ORDER BY created_at ASC"
+        )
+        .map_err(|e| e.to_string())?;
+    
+    let messages: Vec<ChatMessage> = stmt
+        .query_map(params![session_id], |row| {
+            Ok(ChatMessage {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                word_context_id: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    
+    Ok(messages)
+}
+
+/// Get a single chat message by ID
+pub fn get_chat_message_by_id(conn: &Connection, message_id: i64) -> Result<Option<ChatMessage>, String> {
+    let message = conn
+        .query_row(
+            "SELECT id, session_id, role, content, word_context_id, created_at FROM chat_messages WHERE id = ?1",
+            params![message_id],
+            |row| {
+                Ok(ChatMessage {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    role: row.get(2)?,
+                    content: row.get(3)?,
+                    word_context_id: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            },
+        )
+        .ok();
+
+    Ok(message)
+}
+
+/// Delete all chat messages for a session
+pub fn delete_chat_messages_by_session(conn: &Connection, session_id: i64) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM chat_messages WHERE session_id = ?1",
+        params![session_id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "queries_chat_tests.rs"]
+mod queries_chat_tests;

@@ -134,6 +134,8 @@ pub fn run() {
             commands::chat::set_active_chat_session,
             commands::chat::rename_chat_session,
             commands::chat::delete_chat_session,
+            commands::chat::get_available_providers,
+            commands::chat::set_preferred_provider,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

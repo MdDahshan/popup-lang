@@ -42,6 +42,10 @@ fn verify_session_ownership(
     Ok(session)
 }
 
+use crate::services::adapter::AgentRunParams;
+use crate::services::adapters;
+use crate::services::skill_file::{SkillFileContext, generate_skill_content, create_temp_work_dir};
+
 /// Send a chat message and get AI response
 #[tauri::command]
 pub async fn send_chat_message(
@@ -51,7 +55,7 @@ pub async fn send_chat_message(
     session_id: Option<i64>,
 ) -> Result<ChatMessage, String> {
     // Phase 1: All pre-API database work in a single lock
-    let (resolved_session_id, messages, user_context, word_context, api_key) = {
+    let (resolved_session_id, messages, user, word_context, stats, recent_vocabulary, hardest_words, preferred_provider, preferred_model, api_key) = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
         let user = queries::get_user(&conn)?
@@ -85,14 +89,6 @@ pub async fn send_chat_message(
             })
             .collect();
 
-        // Build user context
-        let user_context = UserContext {
-            target_language: user.target_language.clone(),
-            native_language: user.native_language.clone(),
-            level: user.level.clone(),
-            interests: user.interests.clone(),
-        };
-
         // Get word context if provided
         let word_context = if let Some(word_id) = word_context_id {
             let word = queries::get_word_by_id(&conn, word_id)?
@@ -111,20 +107,73 @@ pub async fn send_chat_message(
             None
         };
 
-        // Get API key
-        let api_key = queries::get_setting(&conn, "groq_api_key")?
-            .ok_or_else(|| "API key not configured. Please set your Groq API key in settings.".to_string())?;
+        let stats = queries::get_dashboard_stats(&conn, user.id).unwrap_or_else(|_| crate::models::DashboardStats {
+            total_words_learned: 0,
+            today_completed: 0,
+            today_total: 0,
+            weekly_activity: vec![],
+            accuracy_rate: 0.0,
+            streak_count: 0,
+            hardest_words: vec![],
+        });
+        
+        let recent_vocabulary = queries::get_learned_word_texts(&conn, user.id).unwrap_or_default();
+        let hardest_words: Vec<String> = stats.hardest_words.clone().into_iter().map(|w| w.word_text).collect();
 
-        (resolved_session_id, messages, user_context, word_context, api_key)
+        let preferred_provider = queries::get_setting(&conn, "preferred_ai_provider")?
+            .unwrap_or_else(|| "claude-code".to_string());
+        
+        let preferred_model = queries::get_setting(&conn, "preferred_ai_model")?
+            .unwrap_or_else(|| "default".to_string());
+            
+        let api_key = queries::get_setting(&conn, "groq_api_key")?.unwrap_or_default();
+
+        (resolved_session_id, messages, user, word_context, stats, recent_vocabulary, hardest_words, preferred_provider, preferred_model, api_key)
     };
 
     // Phase 2: Async API call (no lock held)
-    let ai_response = groq::chat_completion(
-        &api_key,
-        messages,
-        &user_context,
-        word_context.as_ref(),
-    ).await?;
+    let skill_ctx = SkillFileContext {
+        target_language: &user.target_language,
+        native_language: &user.native_language,
+        level: &user.level,
+        interests: &user.interests,
+        total_words_learned: stats.total_words_learned,
+        quiz_accuracy: stats.accuracy_rate,
+        streak_days: stats.streak_count,
+        recent_vocabulary: &recent_vocabulary,
+        hardest_words: &hardest_words,
+    };
+    
+    let system_prompt = generate_skill_content(&skill_ctx);
+    let work_dir = create_temp_work_dir(resolved_session_id, &system_prompt)?;
+    
+    // Format history
+    let mut history_str = String::new();
+    for msg in &messages {
+        history_str.push_str(&format!("{}: {}\n\n", msg.role, msg.content));
+    }
+    
+    // Append context if provided
+    if let Some(ctx) = &word_context {
+        history_str.push_str(&format!("(Context: Word '{}' - {})\n", ctx.word_text, ctx.translation));
+    }
+    
+    let all_adapters = adapters::get_all_adapters();
+    let adapter = all_adapters.iter()
+        .find(|a| a.id() == preferred_provider)
+        .or_else(|| all_adapters.iter().find(|a| a.id() == "groq-api"))
+        .ok_or_else(|| "No AI adapter found".to_string())?;
+        
+    let model_ref = if preferred_model == "default" { None } else { Some(preferred_model.as_str()) };
+    let run_params = AgentRunParams {
+        cwd: &work_dir,
+        system_prompt: &system_prompt,
+        user_prompt: &history_str,
+        config_dir: if !api_key.is_empty() { Some(&api_key) } else { None },
+        model: model_ref,
+    };
+    
+    let ai_response = adapter.run(run_params).await?;
 
     // Phase 3: Save AI response and read back from DB (single lock)
     let assistant_message = {
@@ -517,4 +566,23 @@ mod tests {
         assert_eq!(msg.content, "Hello");
         assert_eq!(msg.role, "user");
     }
+}
+
+#[tauri::command]
+pub async fn get_available_providers() -> Result<Vec<crate::services::adapter::AgentDetection>, String> {
+    let mut available = Vec::new();
+    for adapter in crate::services::adapters::get_all_adapters() {
+        available.push(adapter.detect().await);
+    }
+    Ok(available)
+}
+
+#[tauri::command]
+pub fn set_preferred_provider(
+    db: tauri::State<'_, crate::db::Database>,
+    provider_id: String,
+) -> Result<(), String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    crate::db::queries::set_setting(&conn, "preferred_ai_provider", &provider_id)?;
+    Ok(())
 }

@@ -21,6 +21,7 @@ export function ChatView({
   onClearHistory,
   onDeleteSession,
   onCancel,
+  preferredProviderName,
 }: {
   title: string;
   messages: Awaited<ReturnType<typeof api.getChatMessages>>;
@@ -33,6 +34,7 @@ export function ChatView({
   onClearHistory?: () => void;
   onDeleteSession?: () => void;
   onCancel?: () => void;
+  preferredProviderName?: string;
 }) {
   const [input, setInput] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -162,7 +164,7 @@ export function ChatView({
               <div className="relative mb-6">
                 <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full opacity-30 animate-pulse"></div>
                 <video
-                  src="/mascot.mov"
+                  src="/mascot.webm"
                   autoPlay
                   loop
                   muted
@@ -378,7 +380,7 @@ export function ChatView({
                 }
               }}
               rows={1}
-              placeholder={isQuestionMode ? "Type your answer..." : "Ask me anything..."}
+              placeholder={isQuestionMode ? "Type your answer..." : `Ask me anything... ${preferredProviderName ? `(using ${preferredProviderName})` : ""}`}
               className="max-h-[200px] min-h-[1.5rem] w-full resize-none overflow-auto bg-transparent text-[15px] outline-none placeholder:text-muted-foreground/70 mt-0.5"
             />
             

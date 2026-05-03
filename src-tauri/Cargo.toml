@@ -28,4 +28,6 @@ tokio = { version = "1", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
 rand = "0.8"
+async-trait = "0.1.89"
+regex = "1.12.3"
 

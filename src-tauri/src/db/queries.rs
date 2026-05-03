@@ -658,3 +658,25 @@ pub fn get_all_learned_words(conn: &rusqlite::Connection, user_id: i64) -> Resul
 
     Ok(words)
 }
+
+pub fn get_hardest_word_texts(conn: &rusqlite::Connection, user_id: i64) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT w.word_text 
+             FROM words w
+             JOIN daily_words dw ON w.id = dw.word_id
+             JOIN daily_word_sets dws ON dw.set_id = dws.id
+             WHERE dws.user_id = ?1 AND dw.accuracy < 0.7 AND dw.status = 'learned'
+             ORDER BY dw.accuracy ASC
+             LIMIT 10",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query([user_id]).map_err(|e| e.to_string())?;
+    let mut words = Vec::new();
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        words.push(row.get(0).map_err(|e| e.to_string())?);
+    }
+
+    Ok(words)
+}

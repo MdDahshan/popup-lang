@@ -132,3 +132,24 @@ export async function renameChatSession(sessionId: number, title: string): Promi
 export async function deleteChatSession(sessionId: number): Promise<number | null> {
   return invoke<number | null>("delete_chat_session", { sessionId });
 }
+
+export interface ModelOption {
+  id: string;
+  label: string;
+}
+
+export interface AgentDetection {
+  id: string;
+  display_name: string;
+  executable_path?: string;
+  available: boolean;
+  models: ModelOption[];
+}
+
+export async function getAvailableProviders(): Promise<AgentDetection[]> {
+  return invoke<AgentDetection[]>("get_available_providers");
+}
+
+export async function setPreferredProvider(providerId: string): Promise<void> {
+  return invoke<void>("set_preferred_provider", { providerId });
+}

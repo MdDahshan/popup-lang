@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { User } from "@/types";
-import { ChevronDown, ChevronRight, Palette, KeyRound, Globe2, GraduationCap, Zap, Heart, Check, Loader2, X } from "lucide-react";
-
+import { ChevronDown, ChevronRight, Palette, KeyRound, Globe2, GraduationCap, Zap, Heart, Check, Loader2, X, Bot } from "lucide-react";
+import { getAvailableProviders, setPreferredProvider, type AgentDetection } from "@/lib/tauri";
+import * as api from "@/lib/tauri";
 // The core supported languages
 const languages = [
   "Arabic", "English", "Spanish", "French", "German", 
@@ -89,6 +90,47 @@ export function SettingsView({
   const [customInterest, setCustomInterest] = useState("");
   const [savingSync, setSavingSync] = useState(false);
   const [savedSync, setSavedSync] = useState(false);
+  
+  const [providers, setProviders] = useState<AgentDetection[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>("groq-api");
+  const [selectedModel, setSelectedModel] = useState<string>("default");
+
+  useEffect(() => {
+    async function loadProviders() {
+      const all = await getAvailableProviders();
+      setProviders(all);
+      
+      const saved = await api.getSetting("preferred_ai_provider");
+      if (saved) {
+        setSelectedProvider(saved);
+      } else {
+        const availableCli = all.find(p => p.available && p.id !== "groq-api");
+        if (availableCli) setSelectedProvider(availableCli.id);
+      }
+      
+      const savedModel = await api.getSetting("preferred_ai_model");
+      if (savedModel) setSelectedModel(savedModel);
+    }
+    void loadProviders();
+  }, []);
+
+  const currentProvider = providers.find(p => p.id === selectedProvider);
+  const currentModels = currentProvider?.models ?? [];
+
+  const handleProviderSelect = async (id: string) => {
+    setSelectedProvider(id);
+    await setPreferredProvider(id);
+    // Reset model to first available (or "default") when switching providers
+    const provider = providers.find(p => p.id === id);
+    const firstModel = provider?.models?.[0]?.id ?? "default";
+    setSelectedModel(firstModel);
+    await api.setSetting("preferred_ai_model", firstModel);
+  };
+
+  const handleModelSelect = async (modelId: string) => {
+    setSelectedModel(modelId);
+    await api.setSetting("preferred_ai_model", modelId);
+  };
 
   const handleSaveWorkspace = async () => {
     setSavingSync(true);
@@ -162,31 +204,90 @@ export function SettingsView({
 
           <AccordionItem
             title="AI Provider"
-            description="Manage your Groq API credentials"
-            icon={<KeyRound size={20} />}
+            description="Manage your preferred AI model and credentials"
+            icon={<Bot size={20} />}
             isOpen={openSection === "provider"}
             onToggle={() => setOpenSection(openSection === "provider" ? "" : "provider")}
           >
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => onChangeApiKey(e.target.value)}
-                  className="h-10 flex-1 rounded-xl border border-border/60 bg-background/50 px-4 text-[13px] outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
-                  placeholder="Paste your Groq API key (gsk_...)"
-                />
-                <button
-                  disabled={savingApiKey}
-                  onClick={() => void onSaveApiKey()}
-                  className="flex h-10 items-center justify-center rounded-xl bg-primary px-5 text-[13px] font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
-                >
-                  {savingApiKey ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test API"}
-                </button>
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                {providers.map((p) => (
+                  <button
+                    key={p.id}
+                    disabled={!p.available && p.id !== "groq-api"}
+                    onClick={() => handleProviderSelect(p.id)}
+                    className={`flex items-center justify-between rounded-xl border p-3 text-left transition-all ${
+                      selectedProvider === p.id 
+                        ? "border-primary bg-primary/5 shadow-sm" 
+                        : "border-border/50 hover:bg-secondary/30"
+                    } ${!p.available && p.id !== "groq-api" ? "opacity-50 grayscale cursor-not-allowed" : ""}`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[14px] font-semibold text-foreground">
+                        {p.display_name} {p.id === "groq-api" && "(Fallback)"}
+                      </span>
+                      <span className="text-[12px] text-muted-foreground mt-0.5">
+                        {p.id === "groq-api" 
+                          ? "Uses cloud API directly (requires key)" 
+                          : p.available ? `Detected locally: ${p.executable_path}` : "Not installed locally"}
+                      </span>
+                    </div>
+                    <div className={`flex h-5 w-5 items-center justify-center rounded-full border ${selectedProvider === p.id ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
+                      {selectedProvider === p.id && <div className="h-2 w-2 rounded-full bg-white" />}
+                    </div>
+                  </button>
+                ))}
               </div>
-              {apiKeySaved && <p className="text-[13px] font-medium text-emerald-600 flex items-center gap-1.5"><Check size={14} /> Key saved and validated successfully</p>}
+
+              {/* Model Selector */}
+              {currentModels.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border/30 space-y-3">
+                  <p className="text-[13px] font-medium text-foreground">Model</p>
+                  <div className="relative">
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => void handleModelSelect(e.target.value)}
+                      className="h-10 w-full appearance-none rounded-xl border border-border/60 bg-background/50 px-4 text-sm font-medium outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+                    >
+                      {currentModels.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-4 top-3 h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {selectedModel === "default" || !currentModels.find(m => m.id === selectedModel)
+                      ? "Using the provider's default model configuration."
+                      : `Active model: ${selectedModel}`}
+                  </p>
+                </div>
+              )}
+
+              {selectedProvider === "groq-api" && (
+                <div className="mt-4 pt-4 border-t border-border/30 space-y-3">
+                  <p className="text-[13px] font-medium text-foreground">Groq API Key</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => onChangeApiKey(e.target.value)}
+                      className="h-10 flex-1 rounded-xl border border-border/60 bg-background/50 px-4 text-[13px] outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+                      placeholder="Paste your Groq API key (gsk_...)"
+                    />
+                    <button
+                      disabled={savingApiKey}
+                      onClick={() => void onSaveApiKey()}
+                      className="flex h-10 items-center justify-center rounded-xl bg-primary px-5 text-[13px] font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                    >
+                      {savingApiKey ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test API"}
+                    </button>
+                  </div>
+                  {apiKeySaved && <p className="text-[13px] font-medium text-emerald-600 flex items-center gap-1.5"><Check size={14} /> Key saved and validated successfully</p>}
+                </div>
+              )}
             </div>
           </AccordionItem>
+
 
           <AccordionItem
             title="Languages"

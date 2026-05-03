@@ -34,6 +34,7 @@ export default function App() {
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [popupInterval, setPopupInterval] = useState(1);
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
+  const [providerName, setProviderName] = useState<string>("Groq API");
 
   const { user, fetchUser, saveUser, loading: userLoading } = useUserStore();
   const {
@@ -107,6 +108,19 @@ export default function App() {
     } catch {
       setPopupInterval(1);
     }
+    
+    try {
+      const providers = await api.getAvailableProviders();
+      let preferred = await api.getSetting("preferred_ai_provider");
+      if (!preferred) {
+         const cli = providers.find(p => p.available && p.id !== "groq-api");
+         preferred = cli ? cli.id : "groq-api";
+      }
+      const matched = providers.find(p => p.id === preferred);
+      if (matched) setProviderName(matched.display_name);
+    } catch (err) {
+      console.warn("Failed to fetch provider name", err);
+    }
   };
 
   useEffect(() => {
@@ -147,28 +161,31 @@ export default function App() {
 
   if (!user) {
     return (
-      <WelcomeSetup
-        isDark={isDark}
-        onToggleTheme={() => setIsDark((value) => !value)}
-        onSaved={async (form) => {
-          const now = new Date().toISOString();
-          await saveUser({
-            id: 0,
-            native_language: form.native_language,
-            target_language: form.target_language,
-            level: form.level,
-            daily_word_count: form.daily_word_count,
-            reminder_enabled: form.reminder_enabled,
-            interests: form.interests
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean),
-            created_at: now,
-            updated_at: now,
-          });
-          await loadAll();
-        }}
-      />
+      <div className="flex flex-col h-full bg-background text-foreground overflow-hidden rounded-[var(--radius)] border border-border/20 shadow-2xl">
+        <Titlebar />
+        <WelcomeSetup
+          isDark={isDark}
+          onToggleTheme={() => setIsDark((value) => !value)}
+          onSaved={async (form) => {
+            const now = new Date().toISOString();
+            await saveUser({
+              id: 0,
+              native_language: form.native_language,
+              target_language: form.target_language,
+              level: form.level,
+              daily_word_count: form.daily_word_count,
+              reminder_enabled: form.reminder_enabled,
+              interests: form.interests
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean),
+              created_at: now,
+              updated_at: now,
+            });
+            await loadAll();
+          }}
+        />
+      </div>
     );
   }
 
@@ -334,6 +351,7 @@ export default function App() {
                 void deleteSession(sessionId!);
               }}
               onCancel={cancelRequest}
+              preferredProviderName={providerName}
             />
           )}
 

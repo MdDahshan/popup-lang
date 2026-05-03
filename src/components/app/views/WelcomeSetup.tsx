@@ -207,7 +207,7 @@ export function WelcomeSetup({
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-background px-4 py-3 md:px-6 md:py-4">
+    <div className="h-full flex-1 overflow-hidden bg-background px-4 py-3 md:px-6 md:py-4">
       <div className="mx-auto flex h-full max-w-3xl items-center justify-center">
         <div className="w-full max-w-3xl overflow-visible">
           <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">

@@ -1,61 +1,62 @@
 # Popup Lang
 
-تطبيق سطح مكتب لتعلّم اللغات بطريقة يومية ذكية عبر:
-- كلمات يومية مولّدة بالذكاء الاصطناعي
-- مراجعة سريعة داخل التطبيق
-- نافذة Quiz منبثقة تعمل في الخلفية
-- تتبّع تقدّمك وإحصائياتك
-- مساعد دردشة تعليمي
+Popup Lang is a desktop language-learning app that helps users build a daily habit through:
 
-> مبني باستخدام: **Tauri + Rust + React + TypeScript + Tailwind + SQLite**
+- AI-generated daily words
+- Quick in-app review
+- Background quiz popups
+- Progress tracking and statistics
+- An educational chat assistant
 
----
-
-## المزايا الأساسية
-
-- **Onboarding** لاختيار:
-  - اللغة الأم
-  - اللغة المستهدفة
-  - المستوى
-  - عدد الكلمات اليومية
-  - التذكيرات والاهتمامات
-- **توليد كلمات يومية** مع شرح، ترجمة، نطق، وأمثلة.
-- **Quiz Popup** يظهر دوريًا (أو يدويًا من System Tray).
-- **مساعد دردشة** يشرح الكلمات ويعطي تدريبًا إضافيًا.
-- **لوحة تحكم** لعرض الإنجاز اليومي، الدقة، والسجل.
-- **دعم RTL/LTR** وتحسين عرض النصوص المختلطة (عربي/إنجليزي).
+> Built with **Tauri + Rust + React + TypeScript + Tailwind + SQLite**
 
 ---
 
-## المتطلبات
+## Core Features
 
-قبل التشغيل تأكّد من تثبيت:
+- **Onboarding** to choose:
+  - Native language
+  - Target language
+  - Level
+  - Daily word count
+  - Reminders and interests
+- **Daily word generation** with explanation, translation, pronunciation, and examples.
+- **Quiz Popup** shown periodically (or manually from the system tray).
+- **Chat assistant** for word explanations and extra practice.
+- **Dashboard** for daily completion, accuracy, and history.
+- **RTL/LTR support** for mixed Arabic/English content.
 
-1. **Node.js** (يفضّل 18+ أو 20+)
+---
+
+## Requirements
+
+Before running the app, install:
+
+1. **Node.js** (18+ or 20+ recommended)
 2. **npm**
-3. **Rust** + Cargo
-4. متطلبات Tauri الخاصة بنظامك (WebView/tooling)
+3. **Rust** and Cargo
+4. Tauri system prerequisites (WebView/tooling)
 
-راجع توثيق Tauri الرسمي للمتطلبات حسب نظام التشغيل:
+See official Tauri prerequisites by OS:
 https://tauri.app/start/prerequisites/
 
 ---
 
-## التشغيل محليًا
+## Run Locally
 
-### 1) تثبيت الحزم
+### 1) Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2) تشغيل التطبيق (Desktop)
+### 2) Run desktop app
 
 ```bash
 npm run tauri dev
 ```
 
-### 3) تشغيل الواجهة فقط (Web Dev)
+### 3) Run frontend only
 
 ```bash
 npm run dev
@@ -63,59 +64,57 @@ npm run dev
 
 ---
 
-## البناء للإنتاج
+## Production Build
 
 ```bash
 npm run tauri build
 ```
 
-> سيتم إنشاء حزم التطبيق من خلال إعدادات Tauri في `src-tauri/tauri.conf.json`.
+> App bundles are generated according to Tauri settings in `src-tauri/tauri.conf.json`.
 
 ---
 
-## إعداد مفتاح API
+## API Key Setup
 
-- توليد الكلمات اليومية يعتمد على Groq.
-- بعد تشغيل التطبيق، افتح **Settings** وأدخل مفتاح API.
-- يتم حفظ المفتاح محليًا داخل إعدادات التطبيق (SQLite).
-
----
-
-## أوامر npm المتاحة
-
-- `npm run dev` — تشغيل Vite
-- `npm run build` — بناء الواجهة (TypeScript + Vite)
-- `npm run preview` — معاينة build
-- `npm run tauri` — أوامر Tauri
-- `npm run test` — تشغيل الاختبارات مرة واحدة (Vitest)
-- `npm run test:watch` — وضع المراقبة
-- `npm run test:ui` — واجهة Vitest
+- Daily word generation uses Groq.
+- After launching the app, open **Settings** and enter your API key.
+- The key is stored locally in the app settings database (SQLite).
 
 ---
 
-## هيكل المشروع (مختصر)
+## Available npm Scripts
 
-- `src/` — واجهة React (Views, Stores, Components)
-- `src-tauri/` — Rust backend + أوامر Tauri + SQLite
-- `src-tauri/src/commands/` — أوامر التطبيق (chat/quiz/words/settings...)
-- `src-tauri/src/db/` — migrations والاستعلامات
-- `src-tauri/src/services/` — تكاملات AI/Providers
-
----
-
-## ملاحظات
-
-- التطبيق يستخدم System Tray ويستمر بالخلفية.
-- إغلاق النافذة يخفي التطبيق بدل الإنهاء الكامل.
-- يمكن إظهار Quiz فورًا من قائمة الـ Tray عبر خيار **Quiz Now**.
+- `npm run dev` — start Vite
+- `npm run build` — build frontend (TypeScript + Vite)
+- `npm run preview` — preview build
+- `npm run tauri` — run Tauri commands
+- `npm run test` — run tests once (Vitest)
+- `npm run test:watch` — watch mode
+- `npm run test:ui` — Vitest UI
 
 ---
 
-## ملفات توثيق إضافية داخل المشروع
+## Project Structure (short)
+
+- `src/` — React frontend (views, stores, components)
+- `src-tauri/` — Rust backend + Tauri commands + SQLite
+- `src-tauri/src/commands/` — app commands (chat/quiz/words/settings...)
+- `src-tauri/src/db/` — migrations and queries
+- `src-tauri/src/services/` — AI/provider integrations
+
+---
+
+## Notes
+
+- The app uses a system tray and can keep running in the background.
+- Closing the window hides the app instead of fully quitting.
+- You can trigger a quiz immediately from tray menu via **Quiz Now**.
+
+---
+
+## Additional Project Docs
 
 - `language-learning-desktop-app.md`
 - `POPUP_IMPROVEMENTS.md`
 - `MEMORY_AND_POPUP_FIX.md`
 - `USAGE_EXAMPLES.md`
-
-إذا أردت، أقدر أكتب نسخة README ثانية بالإنجليزية أو نسخة أكثر تقنية للمطورين (مع تفاصيل المعمارية وقاعدة البيانات).
